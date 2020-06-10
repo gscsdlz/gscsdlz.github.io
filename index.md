@@ -6,6 +6,7 @@
 | 46  |[把数字翻译成字符串](/leetcode/m46.md) | <span style="color:#f0ad4e">中等</span> |
 
 ## 基础题库
+
 | 题号 | 标题 | 难度 |
 | --- | ---- | ---- |
 | 9 | [回文数](/leetcode/9.md) | <span style="color:#5cb85c">简单</span> |
