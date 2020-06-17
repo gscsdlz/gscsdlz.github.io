@@ -14,3 +14,4 @@
 | 50 | [Pow(x, n)](/leetcode/50.md) | <span style="color:#f0ad4e">中等</span> |
 | 93 | [复原IP地址](/leetcode/93.md) | <span style="color:#f0ad4e">中等</span> |
 | 990 | [等式方程的可满足性](/leetcode/990.md)| <span style="color:#f0ad4e">中等</span> |
+| 1014 | [最佳组合观光](/leetcode/1014.md)| <span style="color:#f0ad4e">中等</span> |
