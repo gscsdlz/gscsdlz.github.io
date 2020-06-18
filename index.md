@@ -4,6 +4,7 @@
 | 题号 | 标题 | 难度 |
 | --- | ---- | ---- |
 | 46  |[把数字翻译成字符串](/leetcode/m46.md) | <span style="color:#f0ad4e">中等</span> |
+| 64  |[面试题64. 求1+2+…+n](/leetcode/m64.md) | <span style="color:#f0ad4e">中等</span> |
 
 ## 基础题库
 
