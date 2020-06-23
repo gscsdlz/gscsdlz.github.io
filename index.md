@@ -29,4 +29,5 @@
 | 1    | [两数之和](/leetcode/1.md)              | <span style="color:#5cb85c">简单</span> |
 | 9    | [回文数](/leetcode/9.md)                | <span style="color:#5cb85c">简单</span> |
 | 14   | [最长公共前缀](/leetcode/14.md)          | <span style="color:#5cb85c">简单</span> |
+| 67   | [二进制求和](/leetcode/67.md)            | <span style="color:#5cb85c">简单</span> |
 | 111  | [二叉树的最小深度](/leetcode/111.md)      | <span style="color:#5cb85c">简单</span> |
