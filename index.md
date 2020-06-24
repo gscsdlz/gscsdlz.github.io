@@ -10,7 +10,8 @@
 
 | 题号 | 标题 | 难度 |
 | --- | ---- | ---- |
-| 45   | [跳跃游戏 II ](/leetcode/45.md)          | <span style="color:#d9534f">困难</span> |
+| 41   | [缺失的第一个正数](/leetcode/41.md)       | <span style="color:#d9534f">困难</span> |
+| 45   | [跳跃游戏 II](/leetcode/45.md)           | <span style="color:#d9534f">困难</span> |
 | 773  | [滑动谜题](/leetcode/773.md)             | <span style="color:#d9534f">困难</span> |
 |   |  |   |
 | 2    | [两数相机](/leetcode/2.md)               | <span style="color:#f0ad4e">中等</span> |
