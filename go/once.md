@@ -97,7 +97,7 @@ func (o *Once) doSlow(f func()) {
 	o.m.Lock()
 	defer o.m.Unlock()
 	if o.done == 0 { //二次判断
-    //将状态设置为已完成
+        //将状态设置为已完成
 		defer atomic.StoreUint32(&o.done, 1)
 		f()
 	}
@@ -109,12 +109,12 @@ func (o *Once) doSlow(f func()) {
 ```go
 func (o *Once) Do(f func()) {
     if atomic.LoadUint32(&o.done) == 0 {
-      o.m.Lock()
+        o.m.Lock()
         if o.done == 0 {
             f()
             atomic.StoreUint32(&o.done, 1)
         }
-      o.m.Unlock()
+        o.m.Unlock()
     }
 }
 ```
@@ -152,8 +152,8 @@ Do一般用于仅能运行一次的初始化操作中，因为f是一个无参�
 ```go
 o := sync.Once{}
 o.Do(func() {
-  o.Do(func() {
-    fmt.Println("ok")
+    o.Do(func() {
+        fmt.Println("ok")
   })
 })
 ```
