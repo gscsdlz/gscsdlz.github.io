@@ -19,8 +19,8 @@ Once可能是整个sync包里面，最简单的工具了。。
 ## 结构
 ```go
 type Once struct {
-	done uint32
-	m    Mutex
+    done uint32
+    m    Mutex
 }
 ```
 
@@ -47,9 +47,9 @@ import (
 func main() {
     o := sync.Once{}
 
-	o.Do(func() {
-		fmt.Println("ok")
-	})
+    o.Do(func() {
+        fmt.Println("ok")
+    })
 }
 ```
 
@@ -59,24 +59,24 @@ func main() {
 package main
 
 import (
-	"fmt"
-	"sync"
-	"time"
+    "fmt"
+    "sync"
+    "time"
 )
 
 func main() {
-	o := sync.Once{}
-	go func() {
-		o.Do(func() {
-			fmt.Println("ok")
-		})
-	}()
-	go func() {
-		o.Do(func() {
-			fmt.Println("ok")
-		})
-	}()
-	time.Sleep(1 * time.Second)
+    o := sync.Once{}
+    go func() {
+        o.Do(func() {
+            fmt.Println("ok")
+        })
+    }()
+    go func() {
+        o.Do(func() {
+            fmt.Println("ok")
+        })
+    }()
+    time.Sleep(1 * time.Second)
 }
 ```
 
@@ -108,14 +108,14 @@ func (o *Once) doSlow(f func()) {
 
 ```go
 func (o *Once) Do(f func()) {
-	if atomic.LoadUint32(&o.done) == 0 {
+    if atomic.LoadUint32(&o.done) == 0 {
       o.m.Lock()
-      if o.done == 0 {
-        f()
-        atomic.StoreUint32(&o.done, 1)
-      }
+        if o.done == 0 {
+            f()
+            atomic.StoreUint32(&o.done, 1)
+        }
       o.m.Unlock()
-	}
+    }
 }
 ```
 
