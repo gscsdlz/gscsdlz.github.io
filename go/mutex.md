@@ -7,15 +7,20 @@
 	- [加锁过程](#加锁过程)
 	- [解锁过程](#解锁过程)
 - [基本结构](#基本结构)
+	- [state的内容](#state的内容)
 	- [常量](#常量)
 - [Lock](#Lock)
 	- [自旋检查](#自旋检查)
 		- [自旋为什么要检查次数？](#自旋为什么要检查次数？)
 		- [为什么单核CPU和运行中的P过少，不能自旋？](#为什么单核CPU和运行中的P过少，不能自旋？)
 		- [为什么当前P的队列需要是空的？](#为什么当前P的队列需要是空的？)
-		- [抢锁](#抢锁)
+	- [抢锁](#抢锁)
+	- [正常模式](#正常模式)
+	- [饥饿模式](#饥饿模式)
 - [Unlock](#Unlock)
 	- [解锁](#解锁)
+- [流程图](#流程图)
+
 
 ## 概述
 ### 加锁过程
@@ -23,11 +28,13 @@
 - 设置状态失败的协程，在满足条件的情况下进行一定的自旋，然后再次尝试获取锁
 - 自旋多次还是不能获取到锁，通过信号量（PV原语）将协程阻塞
 - 超过1ms不能获取到锁，进入饥饿模式
-- `正常模式` 重新尝试获取锁的协程，必须参与排队，和新到的协程共同竞争
-- `饥饿模式` 重新尝试获取锁的协程，排在队列头，新到的协程强制排队
 - 如果获取到锁的协程发现目前的等待队列只有一个，或者锁的时间不超过1ms，退出饥饿模式
 
 ### 解锁过程
+- 首先通过CAS快速设置解锁
+- 如果CAS以后，不为0，说明加锁的时候有竞争【也可能是代码问题，二次Unlock】
+- 如果当前是饥饿模式，唤醒等待队列中的第一个协程
+- 如果是普通模式，唤醒等待队列中的第一个协程，但是会有很多先决条件，原则是避免唤醒过多的协程
 
 ## 基本结构
 
@@ -38,13 +45,25 @@ type Mutex struct {
 }
 ```
 
+### state的内容
+```
+00000000 00000000 00000000 00000000
+|                              ||||
+0 ---------------------------- 0|||   等待协程的数量 共29位 理论上可以表示536870911
+------------------------------- 0||   饥饿模式
+-------------------------------- 0|  唤醒模式
+--------------------------------- 0  锁
+```
+
 ### 常量
 
 ```go
 const (
 	mutexLocked   = 1 //0000 0001 锁定中
-	mutexWoken    = 2 //0000 0010
+	mutexWoken    = 2 //0000 0010 唤醒
 	mutexStarving = 4 //0000 0100 饥饿模式中
+
+	mutexWaiterShift = 3 //偏移3位，目的是在第4-32之间记录等待的协程数
 )
 ```
 
@@ -113,16 +132,19 @@ func sync_runtime_canSpin(i int) bool {
 func (m *Mutex) lockSlow() {
 	var waitStartTime int64
 	starving := false //是否处于饥饿模式
-	awoke := false
+	awoke := false //是否是唤醒状态
 	iter := 0 //自旋执行次数
-	old := m.state //避免被其他协程改写
+	old := m.state
 	for {
 		//处于加锁状态并且不处于饥饿模式，才会尝试判断是否可以自旋
 		if old&(mutexLocked|mutexStarving) == mutexLocked && runtime_canSpin(iter) {
 
 			//awoke为true表示当前协程是刚刚被唤醒的
-			if !awoke && old&mutexWoken == 0 && old>>mutexWaiterShift != 0 &&
-				atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
+			if !awoke &&
+			 old&mutexWoken == 0 &&
+			 old>>mutexWaiterShift != 0 && //还有在等待的协程
+			 atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
+				 //锁标记为唤醒，会通知Unlock不需要唤醒新的协程
 				awoke = true
 			}
 			//自旋，汇编指令，PAUSE30次
@@ -133,16 +155,18 @@ func (m *Mutex) lockSlow() {
 		}
 
 		new := old
-		//当前协程没有处于饥饿模式
+		//当前锁没有处于饥饿模式, 设置锁标记
+		//处于饥饿模式的时候，锁会被第一个排队的协程占用，所以这里不设置
 		if old&mutexStarving == 0 {
 			new |= mutexLocked
 		}
-		//锁定中或者饥饿模式中
+		//锁定中或者饥饿模式中，那么当前的协程需要排队
 		if old&(mutexLocked|mutexStarving) != 0 {
+			//处于等待中的协程加1
 			new += 1 << mutexWaiterShift
 		}
 
-		//当前处于饥饿模式中，并且锁定中
+		//如果当前协程被标记为饥饿状态，并且锁还是占用，则打开锁的饥饿模式
 		if starving && old&mutexLocked != 0 {
 			new |= mutexStarving
 		}
@@ -154,6 +178,7 @@ func (m *Mutex) lockSlow() {
 		}
 		//如果旧的状态和全局状态一致，则尝试将新的状态写入
 		if atomic.CompareAndSwapInt32(&m.state, old, new) {
+			//既不是锁定也不是饥饿，抢锁成功
 			if old&(mutexLocked|mutexStarving) == 0 {
 				break
 			}
@@ -161,14 +186,17 @@ func (m *Mutex) lockSlow() {
 			if waitStartTime == 0 {
 				waitStartTime = runtime_nanotime()
 			}
+			//被唤醒过一次以上，放入等待队列的头部
 			runtime_SemacquireMutex(&m.sema, queueLifo, 1)
 			starving = starving || runtime_nanotime()-waitStartTime > starvationThresholdNs
+			//将当前协程标记为饥饿状态，下次循环时如果锁仍被占用则打开锁的饥饿模式
 			old = m.state
 			//处于饥饿模式，立即获取锁，并且返回
 			if old&mutexStarving != 0 {
 				if old&(mutexLocked|mutexWoken) != 0 || old>>mutexWaiterShift == 0 {
 					throw("sync: inconsistent mutex state")
 				}
+				//获得锁并且等待的协程数减1
 				delta := int32(mutexLocked - 1<<mutexWaiterShift)
 				if !starving || old>>mutexWaiterShift == 1 {
 					//等待时间不到1ms，或者等待锁的协程就一个了，退出饥饿模式
@@ -177,7 +205,7 @@ func (m *Mutex) lockSlow() {
 				atomic.AddInt32(&m.state, delta)
 				break
 			}
-			//正常模式下，重新排队和新来的协程一起竞争
+			//正常模式下，新来的协程一起竞争，标记为被唤醒
 			awoke = true
 			iter = 0
 		} else {
@@ -186,6 +214,18 @@ func (m *Mutex) lockSlow() {
 	}
 }
 ```
+
+### 正常模式
+- 等待锁的协程按照FIFO原则(mutex.go@138)
+- 被唤醒的协程需要和新的协程竞争(mutex.go@129)
+- 一个被唤醒的协程和正在执行的众多新协程竞争，大概率会失败，所以被唤醒的协程如果没有获得到锁会放入等待队列的第一位(mutex.go@134)
+- 被唤醒的协程如果发现已经过了1ms，打开自己的饥饿表示并在下一次循环的时候，打开锁的饥饿模式(mutex.go@139,mutex.go@119)
+
+### 饥饿模式
+- 不再进行自旋(mutex.go@93)
+- 新到来的协程强制排队
+- 锁的所有权直接移交给队列中的第一个协程（mutex.go@141)
+- 如果当前协程在队列中等待的时间小于1ms或者队列中没有其他的等待者，取消锁的饥饿模式(mutex.go@150)
 
 ## Unlock
 
@@ -207,9 +247,11 @@ func (m *Mutex) unlockSlow(new int32) {
 		throw("sync: unlock of unlocked mutex")
 	}
 	if new&mutexStarving == 0 {
+		//普通模式
 		old := new
 		for {
-			if old>>mutexWaiterShift == 0 || old&(mutexLocked|mutexWoken|mutexStarving) != 0 {
+			if old>>mutexWaiterShift == 0 || //没有协程处于等待中
+			old&(mutexLocked|mutexWoken|mutexStarving) != 0 {
 				return
 			}
 			new = (old - 1<<mutexWaiterShift) | mutexWoken
@@ -220,7 +262,17 @@ func (m *Mutex) unlockSlow(new int32) {
 			old = m.state
 		}
 	} else {
+		//饥饿模式下 唤醒第一个等待的协程
 		runtime_Semrelease(&m.sema, true, 1)
 	}
 }
 ```
+
+#### 为什么处于mutexLocked | mutexWoken | mutexStarving的时候不需要唤醒
+- mutexLocked = 1, 说明还未尝试唤醒新的协程，锁已经被新的协程抢走了
+- mutexWoken = 1, 说明有一个刚刚被唤醒的协程，无需唤醒新的协程(mutex被设置为1，发生在进入自旋前的CAS指令中 `mutex.go@98`或者Unlock中的唤醒操作中)
+- mutexStarving = 1,处于饥饿模式下，锁的所有权会立即移交给等待队列中的第一个，不需要唤醒新的协程竞争=
+- `基本原则` 唤醒的时候不要唤醒过多的协程再次争抢锁资源
+
+## 流程图
+![Go Mutex.svg](/resource/image/Go Mutex.svg)
