@@ -40,12 +40,12 @@ Once只需要两步
 package main
 
 import (
-	"fmt"
-	"sync"
+    "fmt"
+    "sync"
 )
 
 func main() {
-	o := sync.Once{}
+    o := sync.Once{}
 
 	o.Do(func() {
 		fmt.Println("ok")
@@ -164,7 +164,7 @@ o.Do(func() {
 
 ```go
 if atomic.CompareAndSwapUint32(&o.done, 0, 1) {
-		f()
+	f()
 }
 ```
 由于Once.Do()是保证当Do返回时，f已经完成了<br/>
