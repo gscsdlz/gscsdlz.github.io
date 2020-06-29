@@ -88,19 +88,19 @@ func main() {
 ```go
 func (o *Once) Do(f func()) {
   //是不是已经运行过一次了，如果是则不需要操作了
-	if atomic.LoadUint32(&o.done) == 0 {
-		o.doSlow(f)
-	}
+    if atomic.LoadUint32(&o.done) == 0 {
+        o.doSlow(f)
+    }
 }
 
 func (o *Once) doSlow(f func()) {
-	o.m.Lock()
-	defer o.m.Unlock()
-	if o.done == 0 { //二次判断
+    o.m.Lock()
+    defer o.m.Unlock()
+    if o.done == 0 { //二次判断
         //将状态设置为已完成
-		defer atomic.StoreUint32(&o.done, 1)
-		f()
-	}
+        defer atomic.StoreUint32(&o.done, 1)
+        f()
+    }
 }
 ```
 
@@ -164,7 +164,7 @@ o.Do(func() {
 
 ```go
 if atomic.CompareAndSwapUint32(&o.done, 0, 1) {
-	f()
+    f()
 }
 ```
 由于Once.Do()是保证当Do返回时，f已经完成了<br/>
