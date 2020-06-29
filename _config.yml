@@ -1,3 +1,4 @@
 theme: jekyll-theme-cayman
 kramdown:
     coderay_tab_width: 4
+    enable_coderay: true
