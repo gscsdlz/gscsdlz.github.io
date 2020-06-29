@@ -4,21 +4,21 @@
 > 基于go1.14的源代码，删除了不影响逻辑的代码和注释，用到了MPG模型，需要提前阅读Go调度相关的知识（简单的即可）
 
 - [概述](#概述)
-        - [加锁过程](#加锁过程)
-        - [解锁过程](#解锁过程)
+  - [加锁过程](#加锁过程)
+  - [解锁过程](#解锁过程)
 - [基本结构](#基本结构)
-        - [state的内容](#state的内容)
-        - [常量](#常量)
+  - [state的内容](#state的内容)
+  - [常量](#常量)
 - [Lock](#Lock)
-        - [自旋检查](#自旋检查)
-                - [自旋为什么要检查次数？](#自旋为什么要检查次数？)
-                - [为什么单核CPU和运行中的P过少，不能自旋？](#为什么单核CPU和运行中的P过少，不能自旋？)
-                - [为什么当前P的队列需要是空的？](#为什么当前P的队列需要是空的？)
-        - [抢锁](#抢锁)
-        - [正常模式](#正常模式)
-        - [饥饿模式](#饥饿模式)
-- [Unlock](#Unlock)
-        - [解锁](#解锁)
+  - [自旋检查](#自旋检查)
+    - [自旋为什么要检查次数？](#自旋为什么要检查次数？)
+    - [为什么单核CPU和运行中的P过少，不能自旋？](#为什么单核CPU和运行中的P过少，不能自旋？)
+    - [为什么当前P的队列需要是空的？](#为什么当前P的队列需要是空的？)
+  - [抢锁](#抢锁)
+  - [正常模式](#正常模式)
+  - [饥饿模式](#饥饿模式)
+  - [Unlock](#Unlock)
+    - [解锁](#解锁)
 - [流程图](#流程图)
 
 
@@ -40,8 +40,8 @@
 
 ```golang
 type Mutex struct {
-        state int32  //锁的状态
-        sema  uint32 //信号量
+    state int32  //锁的状态
+    sema  uint32 //信号量
 }
 ```
 
@@ -59,11 +59,11 @@ type Mutex struct {
 
 ```go
 const (
-        mutexLocked   = 1 //0000 0001 锁定中
-        mutexWoken    = 2 //0000 0010 唤醒
-        mutexStarving = 4 //0000 0100 饥饿模式中
+    mutexLocked   = 1 //0000 0001 锁定中
+    mutexWoken    = 2 //0000 0010 唤醒
+    mutexStarving = 4 //0000 0100 饥饿模式中
 
-        mutexWaiterShift = 3 //偏移3位，目的是在第4-32之间记录等待的协程数
+    mutexWaiterShift = 3 //偏移3位，目的是在第4-32之间记录等待的协程数
 )
 ```
 
@@ -75,10 +75,10 @@ const (
 
 ```go
 func (m *Mutex) Lock() {
-        if atomic.CompareAndSwapInt32(&m.state, 0, mutexLocked) {
-                return
-        }
-        m.lockSlow()
+    if atomic.CompareAndSwapInt32(&m.state, 0, mutexLocked) {
+        return
+    }
+    m.lockSlow()
 }
 ```
 
@@ -90,21 +90,22 @@ func (m *Mutex) Lock() {
 //go:linkname sync_runtime_canSpin sync.runtime_canSpin
 //go:nosplit
 func sync_runtime_canSpin(i int) bool {
-                 //已经自旋4次
-        if i >= active_spin ||
-           //单核CPU
-                 ncpu <= 1 ||  
-                 //空闲的P + 正在自旋的P + 1 即没有其他正在运行的P
-                 //P的总个数等于 = 空闲 + 自旋 + 非自旋
-                 //如果空闲 + 自旋 + 非自旋 >= 总数，意味着非自旋的至多一个了（即当前的P）
-                 gomaxprocs <= int32(sched.npidle+sched.nmspinning)+1 {
-                return false
+    //已经自旋4次
+    if i >= active_spin ||
+        //单核CPU
+        ncpu <= 1 ||  
+        //空闲的P + 正在自旋的P + 1 即没有其他正在运行的P
+        //P的总个数等于 = 空闲 + 自旋 + 非自旋
+        //如果空闲 + 自旋 + 非自旋 >= 总数，意味着非自旋的至多一个了（即当前的P）
+        gomaxprocs <= int32(sched.npidle+sched.nmspinning)+1 {
+
+            return false
         }
         //返回当前的G所在的P，检查P的本地队列是不是空的，如果是非空的，也不能自旋
-        if p := getg().m.p.ptr(); !runqempty(p) {
-                return false
-        }
-        return true
+    if p := getg().m.p.ptr(); !runqempty(p) {
+        return false
+    }
+    return true
 }
 ```
 
@@ -130,88 +131,88 @@ func sync_runtime_canSpin(i int) bool {
 
 ```go
 func (m *Mutex) lockSlow() {
-        var waitStartTime int64
-        starving := false //是否处于饥饿模式
-        awoke := false //是否是唤醒状态
-        iter := 0 //自旋执行次数
-        old := m.state
-        for {
-                //处于加锁状态并且不处于饥饿模式，才会尝试判断是否可以自旋
-                if old&(mutexLocked|mutexStarving) == mutexLocked && runtime_canSpin(iter) {
+    var waitStartTime int64
+    starving := false //是否处于饥饿模式
+    awoke := false //是否是唤醒状态
+    iter := 0 //自旋执行次数
+    old := m.state
+    for {
+        //处于加锁状态并且不处于饥饿模式，才会尝试判断是否可以自旋
+        if old&(mutexLocked|mutexStarving) == mutexLocked && runtime_canSpin(iter) {
 
-                        //awoke为true表示当前协程是刚刚被唤醒的
-                        if !awoke &&
-                         old&mutexWoken == 0 &&
-                         old>>mutexWaiterShift != 0 && //还有在等待的协程
-                         atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
-                                 //锁标记为唤醒，会通知Unlock不需要唤醒新的协程
-                                awoke = true
-                        }
-                        //自旋，汇编指令，PAUSE30次
-                        runtime_doSpin()
-                        iter++
-                        old = m.state
-                        continue
-                }
-
-                new := old
-                //当前锁没有处于饥饿模式, 设置锁标记
-                //处于饥饿模式的时候，锁会被第一个排队的协程占用，所以这里不设置
-                if old&mutexStarving == 0 {
-                        new |= mutexLocked
-                }
-                //锁定中或者饥饿模式中，那么当前的协程需要排队
-                if old&(mutexLocked|mutexStarving) != 0 {
-                        //处于等待中的协程加1
-                        new += 1 << mutexWaiterShift
-                }
-
-                //如果当前协程被标记为饥饿状态，并且锁还是占用，则打开锁的饥饿模式
-                if starving && old&mutexLocked != 0 {
-                        new |= mutexStarving
-                }
-                if awoke {
-                        if new&mutexWoken == 0 {
-                                throw("sync: inconsistent mutex state")
-                        }
-                        new &^= mutexWoken
-                }
-                //如果旧的状态和全局状态一致，则尝试将新的状态写入
-                if atomic.CompareAndSwapInt32(&m.state, old, new) {
-                        //既不是锁定也不是饥饿，抢锁成功
-                        if old&(mutexLocked|mutexStarving) == 0 {
-                                break
-                        }
-                        queueLifo := waitStartTime != 0
-                        if waitStartTime == 0 {
-                                waitStartTime = runtime_nanotime()
-                        }
-                        //被唤醒过一次以上，放入等待队列的头部
-                        runtime_SemacquireMutex(&m.sema, queueLifo, 1)
-                        starving = starving || runtime_nanotime()-waitStartTime > starvationThresholdNs
-                        //将当前协程标记为饥饿状态，下次循环时如果锁仍被占用则打开锁的饥饿模式
-                        old = m.state
-                        //处于饥饿模式，立即获取锁，并且返回
-                        if old&mutexStarving != 0 {
-                                if old&(mutexLocked|mutexWoken) != 0 || old>>mutexWaiterShift == 0 {
-                                        throw("sync: inconsistent mutex state")
-                                }
-                                //获得锁并且等待的协程数减1
-                                delta := int32(mutexLocked - 1<<mutexWaiterShift)
-                                if !starving || old>>mutexWaiterShift == 1 {
-                                        //等待时间不到1ms，或者等待锁的协程就一个了，退出饥饿模式
-                                        delta -= mutexStarving
-                                }
-                                atomic.AddInt32(&m.state, delta)
-                                break
-                        }
-                        //正常模式下，新来的协程一起竞争，标记为被唤醒
-                        awoke = true
-                        iter = 0
-                } else {
-                        old = m.state
-                }
+            //awoke为true表示当前协程是刚刚被唤醒的
+            if !awoke &&
+                old&mutexWoken == 0 &&
+                old>>mutexWaiterShift != 0 && //还有在等待的协程
+                atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
+                        //锁标记为唤醒，会通知Unlock不需要唤醒新的协程
+                awoke = true
+            }
+            //自旋，汇编指令，PAUSE30次
+            runtime_doSpin()
+            iter++
+            old = m.state
+            continue
         }
+
+        new := old
+        //当前锁没有处于饥饿模式, 设置锁标记
+        //处于饥饿模式的时候，锁会被第一个排队的协程占用，所以这里不设置
+        if old&mutexStarving == 0 {
+            new |= mutexLocked
+        }
+        //锁定中或者饥饿模式中，那么当前的协程需要排队
+        if old&(mutexLocked|mutexStarving) != 0 {
+            //处于等待中的协程加1
+            new += 1 << mutexWaiterShift
+        }
+
+        //如果当前协程被标记为饥饿状态，并且锁还是占用，则打开锁的饥饿模式
+        if starving && old&mutexLocked != 0 {
+            new |= mutexStarving
+        }
+        if awoke {
+            if new&mutexWoken == 0 {
+                throw("sync: inconsistent mutex state")
+            }
+            new &^= mutexWoken
+        }
+        //如果旧的状态和全局状态一致，则尝试将新的状态写入
+        if atomic.CompareAndSwapInt32(&m.state, old, new) {
+            //既不是锁定也不是饥饿，抢锁成功
+            if old&(mutexLocked|mutexStarving) == 0 {
+                break
+            }
+            queueLifo := waitStartTime != 0
+            if waitStartTime == 0 {
+                waitStartTime = runtime_nanotime()
+            }
+            //被唤醒过一次以上，放入等待队列的头部
+            runtime_SemacquireMutex(&m.sema, queueLifo, 1)
+            starving = starving || runtime_nanotime()-waitStartTime > starvationThresholdNs
+            //将当前协程标记为饥饿状态，下次循环时如果锁仍被占用则打开锁的饥饿模式
+            old = m.state
+            //处于饥饿模式，立即获取锁，并且返回
+            if old&mutexStarving != 0 {
+                if old&(mutexLocked|mutexWoken) != 0 || old>>mutexWaiterShift == 0 {
+                    throw("sync: inconsistent mutex state")
+                }
+                //获得锁并且等待的协程数减1
+                delta := int32(mutexLocked - 1<<mutexWaiterShift)
+                if !starving || old>>mutexWaiterShift == 1 {
+                    //等待时间不到1ms，或者等待锁的协程就一个了，退出饥饿模式
+                    delta -= mutexStarving
+                }
+                atomic.AddInt32(&m.state, delta)
+                break
+            }
+            //正常模式下，新来的协程一起竞争，标记为被唤醒
+            awoke = true
+            iter = 0
+        } else {
+                old = m.state
+        }
+    }
 }
 ```
 
@@ -231,40 +232,40 @@ func (m *Mutex) lockSlow() {
 
 ```go
 func (m *Mutex) Unlock() {
-        //取消锁定状态，如果加锁的时候没有协程竞争，那么m.state就等于1，无需唤醒等待的协程
-        new := atomic.AddInt32(&m.state, -mutexLocked)
-        //new!=0则m.state不等于1，即有其他协程参数竞争【当然也有可能是解锁以后再次解锁】
-        if new != 0 {
-                m.unlockSlow(new)
-        }
+    //取消锁定状态，如果加锁的时候没有协程竞争，那么m.state就等于1，无需唤醒等待的协程
+    new := atomic.AddInt32(&m.state, -mutexLocked)
+    //new!=0则m.state不等于1，即有其他协程参数竞争【当然也有可能是解锁以后再次解锁】
+    if new != 0 {
+        m.unlockSlow(new)
+    }
 }
 ```
 
 ### 解锁
 ```go
 func (m *Mutex) unlockSlow(new int32) {
-        if (new+mutexLocked)&mutexLocked == 0 {
-                throw("sync: unlock of unlocked mutex")
+    if (new+mutexLocked)&mutexLocked == 0 {
+        throw("sync: unlock of unlocked mutex")
+    }
+    if new&mutexStarving == 0 {
+        //普通模式
+        old := new
+        for {
+            if old>>mutexWaiterShift == 0 || //没有协程处于等待中
+            old&(mutexLocked|mutexWoken|mutexStarving) != 0 {
+                return
+            }
+            new = (old - 1<<mutexWaiterShift) | mutexWoken
+            if atomic.CompareAndSwapInt32(&m.state, old, new) {
+                runtime_Semrelease(&m.sema, false, 1)
+                return
+            }
+            old = m.state
         }
-        if new&mutexStarving == 0 {
-                //普通模式
-                old := new
-                for {
-                        if old>>mutexWaiterShift == 0 || //没有协程处于等待中
-                        old&(mutexLocked|mutexWoken|mutexStarving) != 0 {
-                                return
-                        }
-                        new = (old - 1<<mutexWaiterShift) | mutexWoken
-                        if atomic.CompareAndSwapInt32(&m.state, old, new) {
-                                runtime_Semrelease(&m.sema, false, 1)
-                                return
-                        }
-                        old = m.state
-                }
-        } else {
-                //饥饿模式下 唤醒第一个等待的协程
-                runtime_Semrelease(&m.sema, true, 1)
-        }
+    } else {
+        //饥饿模式下 唤醒第一个等待的协程
+        runtime_Semrelease(&m.sema, true, 1)
+    }
 }
 ```
 
