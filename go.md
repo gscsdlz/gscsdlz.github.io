@@ -7,4 +7,4 @@
 - ✅ [Go Once原理](/go/once.md)
 - [Go Pool原理](/go/pool.md)
 - ✅ [Go RWMutex原理](/go/rwmutex.md)
-- [Go WaitGroup原理](/go/waitgroup.md)
+- ✅ [Go WaitGroup原理](/go/waitgroup.md)
