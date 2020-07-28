@@ -21,6 +21,7 @@
 | 19   | [删除链表的倒数第N个结点](/leetcode/19.md) | <span style="color:#f0ad4e">中等</span> |
 | 50   | [Pow(x, n)](/leetcode/50.md)           | <span style="color:#f0ad4e">中等</span> |
 | 93   | [复原IP地址](/leetcode/93.md)           | <span style="color:#f0ad4e">中等</span> |
+| 129  | [求根到叶子节点数字之和](/leetcode/129.md) | <span style="color:#f0ad4e">中等</span> |
 | 147  | [对链表进行插入排序](/leetcode/147.md)    | <span style="color:#f0ad4e">中等</span> |
 | 695  | [岛屿的最大面积](/leetcode/695.md)       | <span style="color:#f0ad4e">中等</span> |
 | 967  | [连续差相同的数字](/leetcode/967.md)      | <span style="color:#f0ad4e">中等</span>
